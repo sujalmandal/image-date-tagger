@@ -6,7 +6,8 @@
   let currentIndex = 0;
   let currentView = 'analyse';
   let saveTimer = null;
-  let escapeBlurred = false;
+  let escHeld = false;
+  let escReturnFocus = false;
 
   // ===================== DOM refs =====================
   const tabAnalyse = document.getElementById('tab-analyse');
@@ -219,12 +220,11 @@
   }
 
   correctedInput.addEventListener('input', () => {
-    escapeBlurred = false;
     validateDate(correctedInput.value.trim());
     debouncedSave();
   });
   correctedInput.addEventListener('change', saveCurrent);
-  correctedInput.addEventListener('focus', () => { escapeBlurred = false; });
+  correctedInput.addEventListener('focus', () => { escReturnFocus = false; });
   invalidFlag.addEventListener('change', () => { saveCurrent(); renderFileList(); });
   btnPrev.addEventListener('click', prevFile);
   btnNext.addEventListener('click', nextFile);
@@ -232,6 +232,26 @@
   // ===================== Keyboard =====================
   document.addEventListener('keydown', (e) => {
     if (currentView !== 'analyse') return;
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      escHeld = true;
+      escReturnFocus = (document.activeElement === correctedInput);
+      if (escReturnFocus) {
+        validateDate(correctedInput.value.trim());
+        saveCurrent();
+        correctedInput.blur();
+      }
+      return;
+    }
+
+    if (escHeld && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      if (e.key === 'ArrowLeft') prevFile();
+      else nextFile();
+      return;
+    }
+
     if (document.activeElement === correctedInput) {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -242,30 +262,32 @@
         focusInput();
         return;
       }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        escapeBlurred = true;
-        validateDate(correctedInput.value.trim());
-        saveCurrent();
-        correctedInput.blur();
-        return;
-      }
       return;
     }
 
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
       prevFile();
-      if (!escapeBlurred) focusInput();
+      focusInput();
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
       nextFile();
-      if (!escapeBlurred) focusInput();
+      focusInput();
     } else if (e.key.toLowerCase() === 'i') {
       e.preventDefault();
       invalidFlag.checked = !invalidFlag.checked;
       saveCurrent();
       renderFileList();
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Escape') {
+      escHeld = false;
+      if (escReturnFocus) {
+        escReturnFocus = false;
+        focusInput();
+      }
     }
   });
 
