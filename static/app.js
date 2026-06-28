@@ -131,13 +131,83 @@
     }
   }
 
+  // ===================== Selection state =====================
+  let selectedFiles = new Set();
+
+  const selAllCheck = document.getElementById('sel-all');
+  const selDeleteBtn = document.getElementById('sel-delete');
+  const selCountEl = document.getElementById('sel-count');
+
+  function updateSelectionUI() {
+    const count = selectedFiles.size;
+    selDeleteBtn.disabled = count === 0;
+    selCountEl.textContent = count ? `${count} selected` : '';
+    selAllCheck.checked = files.length > 0 && selectedFiles.size === files.length;
+    selAllCheck.indeterminate = selectedFiles.size > 0 && selectedFiles.size < files.length;
+    // update list item visual state
+    document.querySelectorAll('#analyse-file-list li').forEach(li => {
+      const fn = li.dataset.filename;
+      if (fn) li.classList.toggle('selected', selectedFiles.has(fn));
+    });
+  }
+
+  function toggleSelect(filename) {
+    if (selectedFiles.has(filename)) selectedFiles.delete(filename);
+    else selectedFiles.add(filename);
+    updateSelectionUI();
+  }
+
+  function selectAll() {
+    if (selectedFiles.size === files.length) selectedFiles.clear();
+    else files.forEach(f => selectedFiles.add(f.filename));
+    updateSelectionUI();
+  }
+
+  selAllCheck.addEventListener('change', selectAll);
+
+  async function deleteSelected() {
+    const names = Array.from(selectedFiles);
+    if (!names.length) return;
+    if (!confirm(`Delete ${names.length} image${names.length > 1 ? 's' : ''}?`)) return;
+
+    // Disable button while deleting
+    selDeleteBtn.disabled = true;
+    selDeleteBtn.textContent = 'Deleting...';
+
+    for (const name of names) {
+      try {
+        await api(`/api/files/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Delete failed:', name, e);
+      }
+    }
+
+    selectedFiles.clear();
+    selDeleteBtn.textContent = 'Delete';
+    await loadFiles();
+    updateOcrProgress();
+  }
+
+  selDeleteBtn.addEventListener('click', deleteSelected);
+
   // ===================== Analyse view =====================
   function renderFileList() {
     fileListEl.innerHTML = '';
     files.forEach((file, idx) => {
       const li = document.createElement('li');
+      li.dataset.filename = file.filename;
       if (idx === currentIndex) li.classList.add('active');
       if (file.is_invalid) li.classList.add('invalid');
+      if (selectedFiles.has(file.filename)) li.classList.add('selected');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'file-cb';
+      cb.checked = selectedFiles.has(file.filename);
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSelect(file.filename);
+      });
 
       const nameSpan = document.createElement('span');
       nameSpan.textContent = file.filename;
@@ -147,9 +217,11 @@
       const d = file.corrected_date || file.extracted_date || 'NO_DATE';
       dateSpan.textContent = d;
 
+      li.appendChild(cb);
       li.appendChild(nameSpan);
       li.appendChild(dateSpan);
-      li.addEventListener('click', () => {
+      li.addEventListener('click', (e) => {
+        if (e.target === cb) return;
         currentIndex = idx;
         loadCurrentFile();
       });
@@ -160,6 +232,7 @@
     if (activeLi) activeLi.scrollIntoView({ block: 'nearest' });
 
     analyseCountEl.textContent = `${currentIndex + 1} / ${files.length}`;
+    updateSelectionUI();
   }
 
   function loadCurrentFile() {
@@ -480,7 +553,50 @@
   // ===================== Dashboard =====================
   let dashboardDateFiles = [];
   let dashboardImageIndex = 0;
+  let dashboardSelected = new Set();
   const dashboardViewer = createViewer(dashboardViewerEl, dashboardImage);
+
+  const dashSelAll = document.getElementById('dash-sel-all');
+  const dashExportBtn = document.getElementById('dash-export-btn');
+  const dashSelCount = document.getElementById('dash-sel-count');
+
+  function updateDashSelectionUI() {
+    const total = dashboardDateFiles.length;
+    const sel = dashboardSelected.size;
+    dashSelAll.checked = total > 0 && sel === total;
+    dashSelAll.indeterminate = sel > 0 && sel < total;
+    dashExportBtn.disabled = sel === 0;
+    dashSelCount.textContent = sel ? `${sel} selected` : '';
+  }
+
+  function toggleDashSelect(filename) {
+    if (dashboardSelected.has(filename)) dashboardSelected.delete(filename);
+    else dashboardSelected.add(filename);
+    updateDashSelectionUI();
+  }
+
+  dashSelAll.addEventListener('change', () => {
+    if (dashboardSelected.size === dashboardDateFiles.length) dashboardSelected.clear();
+    else dashboardDateFiles.forEach(f => dashboardSelected.add(f));
+    updateDashSelectionUI();
+  });
+
+  async function exportSelected() {
+    const date = dashboardDateLabel.textContent;
+    if (!date || !dashboardSelected.size) return;
+    for (const filename of dashboardSelected) {
+      const a = document.createElement('a');
+      a.href = `/api/export/${encodeURIComponent(filename)}`;
+      a.download = '';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  dashExportBtn.addEventListener('click', exportSelected);
 
   async function loadDashboard() {
     const dates = await api('/api/dates');
@@ -532,6 +648,7 @@
     dashImgCounter.textContent = `${dashboardImageIndex + 1} / ${dashboardDateFiles.length}`;
     dashImgPrev.disabled = dashboardImageIndex === 0;
     dashImgNext.disabled = dashboardImageIndex === dashboardDateFiles.length - 1;
+    updateDashSelectionUI();
   }
 
   async function showDashboardDate(date, filenames) {
@@ -541,6 +658,7 @@
 
     dashboardDateFiles = filenames;
     dashboardImageIndex = 0;
+    dashboardSelected = new Set();
     dashboardDateLabel.textContent = date;
     showDashboardViewer();
     updateDashboardImage();

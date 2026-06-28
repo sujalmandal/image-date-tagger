@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderValue, StatusCode},
     response::{Html, IntoResponse, Json, Response},
     routing::{get, post, put},
     Router,
@@ -562,6 +562,63 @@ async fn cancel_ocr_job(
     Ok(Json(serde_json::json!({"status": "cancelling"})))
 }
 
+async fn export_file(
+    State(state): State<AppState>,
+    Path(filename): Path<String>,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    let path = std::path::Path::new(ROOT_DIR).join(&filename);
+    if !path.exists() {
+        return Err((StatusCode::NOT_FOUND, "File not found".into()));
+    }
+
+    let data = tokio::fs::read(&path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")))?;
+
+    let mime = mime_type(&path);
+
+    let inner = state.inner.read().await;
+    let date = inner
+        .annotations
+        .files
+        .iter()
+        .find(|f| f.filename == filename)
+        .and_then(|f| f.corrected_date.as_deref().or(f.extracted_date.as_deref()));
+
+    let download_name = match date {
+        Some(d) => format!("{}_{}", d, filename),
+        None => filename.clone(),
+    };
+
+    let mut resp = Response::new(Body::from(data));
+    resp.headers_mut()
+        .insert(axum::http::header::CONTENT_TYPE, HeaderValue::from_static(mime));
+    resp.headers_mut().insert(
+        axum::http::header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", download_name))
+            .unwrap(),
+    );
+    Ok(resp)
+}
+
+async fn delete_file(
+    State(state): State<AppState>,
+    Path(filename): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let path = std::path::Path::new(ROOT_DIR).join(&filename);
+    if path.exists() {
+        tokio::fs::remove_file(&path)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")))?;
+    }
+
+    let mut inner = state.inner.write().await;
+    inner.annotations.files.retain(|f| f.filename != filename);
+    save_annotations(&inner.annotations);
+
+    Ok(Json(serde_json::json!({"deleted": true})))
+}
+
 async fn ocr_progress(State(state): State<AppState>) -> Json<serde_json::Value> {
     let inner = state.inner.read().await;
     let total = inner.annotations.files.len();
@@ -692,8 +749,9 @@ async fn main() {
     let app = Router::new()
         .route("/", get(index))
         .route("/api/files", get(get_files))
-        .route("/api/files/{filename}", put(update_file))
+        .route("/api/files/{filename}", put(update_file).delete(delete_file))
         .route("/api/images/{filename}", get(get_image))
+        .route("/api/export/{filename}", get(export_file))
         .route("/api/dates", get(get_dates))
         .route("/api/ocr/{filename}", post(run_ocr))
         .route("/api/ocr-job", post(start_ocr_job).get(get_ocr_job))

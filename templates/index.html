@@ -32,6 +32,11 @@
             <button id="ocr-all" class="small-btn" title="Run OCR on all remaining files">OCR All</button>
           </div>
         </div>
+        <div class="selection-bar">
+          <label class="sel-all-label"><input type="checkbox" id="sel-all"> Select all</label>
+          <button id="sel-delete" class="small-btn danger" disabled>Delete</button>
+          <span id="sel-count" class="sel-count"></span>
+        </div>
         <ul id="analyse-file-list" class="file-list"></ul>
       </aside>
 
@@ -103,8 +108,11 @@
           <div class="dashboard-toolbar">
             <span id="dashboard-date-label" class="date-label">-</span>
             <div class="dashboard-image-nav">
-              <button id="dash-img-prev" class="small-btn">← Prev</button>
+              <label class="dash-sel-label"><input type="checkbox" id="dash-sel-all"> All</label>
+              <button id="dash-export-btn" class="small-btn" disabled>Export</button>
+              <span id="dash-sel-count" class="sel-count"></span>
               <span id="dash-img-counter">1 / 1</span>
+              <button id="dash-img-prev" class="small-btn">← Prev</button>
               <button id="dash-img-next" class="small-btn">Next →</button>
             </div>
           </div>
