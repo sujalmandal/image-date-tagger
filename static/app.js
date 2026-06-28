@@ -234,6 +234,7 @@
     if (currentView !== 'analyse') return;
 
     if (e.key === 'Escape') {
+      if (e.repeat) return;
       e.preventDefault();
       escHeld = true;
       escReturnFocus = (document.activeElement === correctedInput);
