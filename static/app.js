@@ -143,10 +143,13 @@
     selCountEl.textContent = count ? `${count} selected` : '';
     selAllCheck.checked = files.length > 0 && selectedFiles.size === files.length;
     selAllCheck.indeterminate = selectedFiles.size > 0 && selectedFiles.size < files.length;
-    // update list item visual state
+    // update list item visual state AND checkbox ticks
     document.querySelectorAll('#analyse-file-list li').forEach(li => {
       const fn = li.dataset.filename;
-      if (fn) li.classList.toggle('selected', selectedFiles.has(fn));
+      const isSelected = selectedFiles.has(fn);
+      li.classList.toggle('selected', isSelected);
+      const cb = li.querySelector('.file-cb');
+      if (cb) cb.checked = isSelected;
     });
   }
 
@@ -610,6 +613,15 @@
     dashSelAll.indeterminate = sel > 0 && sel < total;
     dashExportBtn.disabled = sel === 0;
     dashSelCount.textContent = sel ? `${sel} selected` : '';
+    // sync individual checkbox ticks and highlights
+    document.querySelectorAll('#dashboard-file-list .dash-file-item').forEach(item => {
+      const fn = item.dataset.filename;
+      if (!fn) return;
+      const isSelected = dashboardSelected.has(fn);
+      item.classList.toggle('selected', isSelected);
+      const cb = item.querySelector('input[type="checkbox"]');
+      if (cb) cb.checked = isSelected;
+    });
   }
 
   function toggleDashSelect(filename) {
@@ -690,7 +702,9 @@
     dashboardDateFiles.forEach((filename, idx) => {
       const item = document.createElement('div');
       item.className = 'dash-file-item';
+      item.dataset.filename = filename;
       if (idx === dashboardImageIndex) item.classList.add('active');
+      if (dashboardSelected.has(filename)) item.classList.add('selected');
 
       const cb = document.createElement('input');
       cb.type = 'checkbox';
