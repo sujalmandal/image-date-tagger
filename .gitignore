@@ -1,0 +1,32 @@
+.venv
+__pycache__
+*.pyc
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Uploaded receipt images
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Annotation data (local state)
+data/annotations.json
+
+# Environment files (secrets / local config)
+.env
+
+# Server logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

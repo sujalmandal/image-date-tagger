@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sales Book Date Annotator</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Sales Book Date Annotator</h1>
+    <nav class="tabs">
+      <button id="tab-analyse" class="tab-btn active">Analyse</button>
+      <button id="tab-dashboard" class="tab-btn">Dashboard</button>
+      <button id="tab-upload" class="tab-btn">Upload</button>
+    </nav>
+    <div id="ocr-progress" class="ocr-progress"></div>
+  </header>
+
+  <main id="app">
+    <!-- ANALYSE VIEW -->
+    <section id="view-analyse" class="view active">
+      <aside class="file-list-panel">
+        <div class="panel-header">
+          <span id="analyse-count">0 / 0</span>
+          <div class="batch-actions">
+            <button id="ocr-next-batch" class="small-btn" title="Run OCR on next 7 unprocessed files">OCR Next 7</button>
+            <button id="ocr-all" class="small-btn" title="Run OCR on all remaining files">OCR All</button>
+          </div>
+        </div>
+        <ul id="analyse-file-list" class="file-list"></ul>
+      </aside>
+
+      <div class="viewer-panel">
+        <div id="image-viewer" class="image-viewer">
+          <img id="viewer-image" src="" alt="Receipt" draggable="false">
+        </div>
+        <div class="viewer-hint">
+          Scroll to zoom · drag to pan · double-click to reset
+        </div>
+      </div>
+
+      <aside class="details-panel">
+        <div class="panel-section">
+          <h3>File Info</h3>
+          <div class="info-row">
+            <label>Original Name</label>
+            <div id="detail-filename" class="filename-box">-</div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h3>Dates</h3>
+          <div class="info-row">
+            <label>Extracted Date</label>
+            <div id="detail-extracted" class="extracted-box">-</div>
+          </div>
+          <div class="info-row">
+            <label for="corrected-date">Corrected Date</label>
+            <input id="corrected-date" type="text" placeholder="DD-MM-YYYY" maxlength="10">
+            <div id="date-error" class="error-msg"></div>
+          </div>
+          <div class="info-row checkbox-row">
+            <input id="invalid-flag" type="checkbox">
+            <label for="invalid-flag">Mark image as invalid</label>
+          </div>
+          <div class="info-row">
+            <span id="save-status" class="save-status">-</span>
+          </div>
+        </div>
+
+        <div class="panel-section keyboard-help">
+          <h3>Keyboard</h3>
+          <p><kbd>←</kbd> <kbd>→</kbd> prev / next</p>
+          <p><kbd>Enter</kbd> confirm date</p>
+          <p><kbd>i</kbd> toggle invalid</p>
+        </div>
+
+        <div class="nav-buttons">
+          <button id="btn-prev" class="nav-btn">← Prev</button>
+          <button id="btn-next" class="nav-btn">Next →</button>
+        </div>
+      </aside>
+    </section>
+
+    <!-- DASHBOARD VIEW -->
+    <section id="view-dashboard" class="view">
+      <aside class="date-list-panel">
+        <div class="panel-header">
+          <span>Corrected Dates</span>
+        </div>
+        <div id="dashboard-date-list" class="date-list"></div>
+      </aside>
+
+      <div class="dashboard-images" id="dashboard-images">
+        <div class="empty-state">Click a date on the left to view images.</div>
+
+        <div id="dashboard-viewer-wrap" class="dashboard-viewer-wrap hidden">
+          <div class="dashboard-toolbar">
+            <span id="dashboard-date-label" class="date-label">-</span>
+            <div class="dashboard-image-nav">
+              <button id="dash-img-prev" class="small-btn">← Prev</button>
+              <span id="dash-img-counter">1 / 1</span>
+              <button id="dash-img-next" class="small-btn">Next →</button>
+            </div>
+          </div>
+          <div id="dashboard-image-viewer" class="image-viewer">
+            <img id="dashboard-image" src="" alt="Receipt" draggable="false">
+          </div>
+          <div class="viewer-hint">Scroll to zoom · drag to pan · double-click to reset</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UPLOAD VIEW -->
+    <section id="view-upload" class="view">
+      <div class="upload-container">
+        <div class="upload-box" id="upload-box">
+          <input type="file" id="upload-input" multiple accept="image/jpeg,image/jpg,image/png,image/webp">
+          <div class="upload-icon">📁</div>
+          <p class="upload-title">Drop images here or click to browse</p>
+          <p class="upload-hint">JPG, PNG, WEBP accepted</p>
+          <button id="upload-button" class="upload-btn">Select Files</button>
+        </div>
+
+        <div id="upload-queue" class="upload-queue"></div>
+        <div id="upload-status" class="upload-status"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

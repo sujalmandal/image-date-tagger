@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+data/uploads/*
+data/annotations.json
+.env
+.env.*
+*.log
+.DS_Store
+.git
+.gitignore
+start.sh
+README.md
