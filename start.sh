@@ -18,14 +18,12 @@ fi
 
 cd "$APP_DIR"
 
-# Export mode: copy data from the named volume back to host
+# Export mode: copy data from the named volume back to host via tar stream
 if [[ "$EXPORT" == true ]]; then
   echo "Exporting volume data back to ${APP_DIR}/data-export ..."
-  docker run --rm \
-    -v "${VOLUME_NAME}:/app/data" \
-    -v "${APP_DIR}/data-export:/host-data" \
-    alpine \
-    sh -c 'cp -a /app/data/. /host-data/'
+  mkdir -p "${APP_DIR}/data-export"
+  docker run --rm -v "${VOLUME_NAME}:/app/data" alpine tar -C /app/data -cf - . \
+    | tar -C "${APP_DIR}/data-export" -xf -
   echo "Exported to ${APP_DIR}/data-export"
   exit 0
 fi
@@ -74,15 +72,11 @@ fi
 # Create/ensure the named volume exists
 docker volume inspect "${VOLUME_NAME}" >/dev/null 2>&1 || docker volume create "${VOLUME_NAME}"
 
-# Seed the volume with existing host data if it is empty
+# Seed the volume with existing host data if it is empty (tar stream avoids bind mounts)
 SEED_MARKER=$(docker run --rm -v "${VOLUME_NAME}:/app/data" alpine ls -A /app/data 2>/dev/null || true)
 if [[ -z "$SEED_MARKER" ]]; then
   echo "Seeding volume from ${APP_DIR}/data ..."
-  docker run --rm \
-    -v "${APP_DIR}/data:/host-data" \
-    -v "${VOLUME_NAME}:/app/data" \
-    alpine \
-    sh -c 'cp -a /host-data/. /app/data/'
+  tar -C "${APP_DIR}/data" -cf - . | docker run -i --rm -v "${VOLUME_NAME}:/app/data" alpine tar -C /app/data -xf -
 fi
 
 echo "Starting app at http://127.0.0.1:8000"
