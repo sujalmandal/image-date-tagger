@@ -4,15 +4,31 @@ set -e
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGE_NAME="image-date-tagger"
 CONTAINER_NAME="image-date-tagger"
+VOLUME_NAME="image-date-tagger-data"
 ENV_FILE="${APP_DIR}/.env"
 
 # Parse optional flags
 ATTACH=false
+EXPORT=false
 if [[ "${1:-}" == "--attach" || "${1:-}" == "-f" ]]; then
   ATTACH=true
+elif [[ "${1:-}" == "--export" ]]; then
+  EXPORT=true
 fi
 
 cd "$APP_DIR"
+
+# Export mode: copy data from the named volume back to host
+if [[ "$EXPORT" == true ]]; then
+  echo "Exporting volume data back to ${APP_DIR}/data-export ..."
+  docker run --rm \
+    -v "${VOLUME_NAME}:/app/data" \
+    -v "${APP_DIR}/data-export:/host-data" \
+    alpine \
+    sh -c 'cp -a /app/data/. /host-data/'
+  echo "Exported to ${APP_DIR}/data-export"
+  exit 0
+fi
 
 # Ensure data directories exist
 mkdir -p data/uploads
@@ -55,17 +71,33 @@ if docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
   docker rm "${CONTAINER_NAME}" >/dev/null || true
 fi
 
+# Create/ensure the named volume exists
+docker volume inspect "${VOLUME_NAME}" >/dev/null 2>&1 || docker volume create "${VOLUME_NAME}"
+
+# Seed the volume with existing host data if it is empty
+SEED_MARKER=$(docker run --rm -v "${VOLUME_NAME}:/app/data" alpine ls -A /app/data 2>/dev/null || true)
+if [[ -z "$SEED_MARKER" ]]; then
+  echo "Seeding volume from ${APP_DIR}/data ..."
+  docker run --rm \
+    -v "${APP_DIR}/data:/host-data" \
+    -v "${VOLUME_NAME}:/app/data" \
+    alpine \
+    sh -c 'cp -a /host-data/. /app/data/'
+fi
+
 echo "Starting app at http://127.0.0.1:8000"
 docker run -d \
   --name "${CONTAINER_NAME}" \
   -p 8000:8000 \
-  -v "${APP_DIR}/data:/app/data" \
+  -v "${VOLUME_NAME}:/app/data" \
   -e OCR_URL \
   -e OCR_MODEL \
   -e OCR_API_KEY \
   "${IMAGE_NAME}"
 
 echo "Container ${CONTAINER_NAME} started."
+echo "Data is stored in Docker volume '${VOLUME_NAME}'."
+echo "Run './start.sh --export' to copy it back to the host."
 
 if [[ "$ATTACH" == true ]]; then
   echo "Following logs (Ctrl+C to detach)..."
