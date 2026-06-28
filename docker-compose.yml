@@ -1,0 +1,18 @@
+services:
+  image-date-tagger:
+    build: .
+    container_name: image-date-tagger
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - OCR_URL=${OCR_URL:-http://host.docker.internal:1234/v1}
+      - OCR_MODEL=${OCR_MODEL:-gemma4-26b-a4b-qat-uncensored-hauhaucs-balanced-mtp}
+      - OCR_API_KEY=${OCR_API_KEY:-}
+    volumes:
+      - image_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  image_data:
