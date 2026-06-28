@@ -6,6 +6,12 @@ IMAGE_NAME="image-date-tagger"
 CONTAINER_NAME="image-date-tagger"
 ENV_FILE="${APP_DIR}/.env"
 
+# Parse optional flags
+ATTACH=false
+if [[ "${1:-}" == "--attach" || "${1:-}" == "-f" ]]; then
+  ATTACH=true
+fi
+
 cd "$APP_DIR"
 
 # Ensure data directories exist
@@ -45,5 +51,10 @@ docker run -d \
   "${IMAGE_NAME}"
 
 echo "Container ${CONTAINER_NAME} started."
-echo "Logs:"
-docker logs -f "${CONTAINER_NAME}"
+
+if [[ "$ATTACH" == true ]]; then
+  echo "Following logs (Ctrl+C to detach)..."
+  docker logs -f "${CONTAINER_NAME}"
+else
+  echo "Run './start.sh --attach' to follow logs."
+fi

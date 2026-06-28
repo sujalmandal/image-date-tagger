@@ -14,7 +14,11 @@
       <button id="tab-dashboard" class="tab-btn">Dashboard</button>
       <button id="tab-upload" class="tab-btn">Upload</button>
     </nav>
-    <div id="ocr-progress" class="ocr-progress"></div>
+    <div id="ocr-progress" class="ocr-progress">
+      <span id="ocr-progress-text">OCR 0/0 done</span>
+      <div id="ocr-progress-bar" class="ocr-progress-bar"><div id="ocr-progress-fill" class="ocr-progress-fill"></div></div>
+      <button id="ocr-cancel" class="ocr-cancel hidden" title="Cancel running OCR">✕</button>
+    </div>
   </header>
 
   <main id="app">
@@ -71,7 +75,7 @@
 
         <div class="panel-section keyboard-help">
           <h3>Keyboard</h3>
-          <p><kbd>←</kbd> <kbd>→</kbd> prev / next</p>
+          <p><kbd>Esc</kbd> + <kbd>←</kbd> <kbd>→</kbd> prev / next</p>
           <p><kbd>Enter</kbd> confirm date</p>
           <p><kbd>i</kbd> toggle invalid</p>
         </div>

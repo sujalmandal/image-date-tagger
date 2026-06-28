@@ -27,6 +27,9 @@
   const btnPrev = document.getElementById('btn-prev');
   const btnNext = document.getElementById('btn-next');
   const ocrProgress = document.getElementById('ocr-progress');
+  const ocrProgressText = document.getElementById('ocr-progress-text');
+  const ocrProgressFill = document.getElementById('ocr-progress-fill');
+  const ocrCancel = document.getElementById('ocr-cancel');
   const ocrNextBtn = document.getElementById('ocr-next-batch');
   const ocrAllBtn = document.getElementById('ocr-all');
   const dashboardDateList = document.getElementById('dashboard-date-list');
@@ -94,9 +97,37 @@
   async function updateOcrProgress() {
     try {
       const p = await api('/api/ocr-progress');
-      ocrProgress.textContent = `OCR ${p.done}/${p.total} done`;
+      const total = p.total || 0;
+      const done = p.done || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      ocrProgressText.textContent = `OCR ${done}/${total} done`;
+      ocrProgressFill.style.width = `${pct}%`;
+      ocrProgressFill.classList.remove('error');
+
+      const job = p.job || {};
+      const running = job.status === 'running' || job.status === 'cancelling';
+      ocrNextBtn.disabled = running;
+      ocrAllBtn.disabled = running;
+      ocrCancel.classList.toggle('hidden', !running);
+
+      if (running) {
+        const jDone = job.done || 0;
+        const jTotal = job.total || 1;
+        const jPct = Math.round((jDone / jTotal) * 100);
+        ocrProgressText.textContent = job.message || `OCR ${jDone}/${jTotal}`;
+        ocrProgressFill.style.width = `${jPct}%`;
+      }
+
+      if (job.status === 'error' || job.status === 'cancelled') {
+        ocrProgressFill.classList.add('error');
+      }
+
+      return running;
     } catch (e) {
-      ocrProgress.textContent = '';
+      ocrProgressText.textContent = 'OCR status unavailable';
+      ocrProgressFill.style.width = '0%';
+      ocrProgressFill.classList.add('error');
+      return false;
     }
   }
 
@@ -389,53 +420,60 @@
 
   const analyseViewer = createViewer(viewerEl, viewerImage);
 
-  // ===================== OCR buttons =====================
-  async function runOcrBatch(count, all = false) {
+  // ===================== OCR async job =====================
+  let ocrPollTimer = null;
+
+  function stopOcrPoll() {
+    if (ocrPollTimer) {
+      clearTimeout(ocrPollTimer);
+      ocrPollTimer = null;
+    }
+  }
+
+  async function pollOcrJob() {
+    const running = await updateOcrProgress();
+    if (running) {
+      ocrPollTimer = setTimeout(pollOcrJob, 800);
+    } else {
+      stopOcrPoll();
+      await loadFiles();
+    }
+  }
+
+  async function startOcrBatch(count, all = false) {
     const pending = files.filter(f => !f.extracted_date && !f.is_invalid);
-    const batch = pending.slice(0, count);
+    const batch = pending.slice(0, all ? pending.length : count);
     if (!batch.length) {
       alert('No unprocessed files left.');
       return;
     }
 
-    const names = batch.map(f => f.filename);
-    const max = all ? names.length : 7;
-    const toRun = names.slice(0, max);
-    if (!toRun.length) return;
-
-    setOcrRunning(true);
+    stopOcrPoll();
     try {
-      const results = await api('/api/ocr-batch', {
+      await api('/api/ocr-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toRun)
+        body: JSON.stringify({ filenames: batch.map(f => f.filename) })
       });
-      results.forEach(r => {
-        const f = files.find(x => x.filename === r.filename);
-        if (f) f.extracted_date = r.extracted_date;
-      });
-      loadCurrentFile();
-      renderFileList();
-      updateOcrProgress();
+      pollOcrJob();
     } catch (e) {
-      alert('OCR batch failed: ' + e.message);
-    } finally {
-      setOcrRunning(false);
+      alert('Could not start OCR: ' + e.message);
+      updateOcrProgress();
     }
   }
 
-  function setOcrRunning(running) {
-    ocrNextBtn.disabled = running;
-    ocrAllBtn.disabled = running;
-    if (running) {
-      ocrProgress.innerHTML = '<span class="spinner"></span> Running OCR...';
-    }
-  }
-
-  ocrNextBtn.addEventListener('click', () => runOcrBatch(7, false));
+  ocrNextBtn.addEventListener('click', () => startOcrBatch(7, false));
   ocrAllBtn.addEventListener('click', () => {
     if (confirm('Run OCR on all remaining unprocessed images? This may take a while.')) {
-      runOcrBatch(files.length, true);
+      startOcrBatch(files.length, true);
+    }
+  });
+  ocrCancel.addEventListener('click', async () => {
+    try {
+      await api('/api/ocr-job/cancel', { method: 'POST' });
+      await updateOcrProgress();
+    } catch (e) {
+      console.error('Cancel failed:', e);
     }
   });
 
