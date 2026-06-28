@@ -25,6 +25,9 @@ data/annotations.json
 .DS_Store
 Thumbs.db
 
+# Rust build output
+target/
+
 # IDE
 .vscode/
 .idea/

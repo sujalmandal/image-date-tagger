@@ -1,19 +1,21 @@
-FROM python:3.11-slim
-
+FROM rust:bookworm AS builder
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libmagic1 \
-    && rm -rf /var/lib/apt/lists/*
+COPY Cargo.toml Cargo.lock* ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs
+RUN cargo build --release 2>/dev/null || true
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY src/ ./src/
+RUN cargo build --release
 
-COPY app.py .
+FROM debian:bookworm-slim
+WORKDIR /app
+
+COPY --from=builder /app/target/release/image-date-tagger /app/
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY data/ ./data/
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./image-date-tagger"]
