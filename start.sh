@@ -30,8 +30,23 @@ export OCR_URL="${OCR_URL:-http://host.docker.internal:1234/v1}"
 export OCR_MODEL="${OCR_MODEL:-gemma4-26b-a4b-qat-uncensored-hauhaucs-balanced-mtp}"
 export OCR_API_KEY="${OCR_API_KEY:-}"
 
+echo "Checking Docker daemon (timeout 10s)..."
+if ! .venv/bin/python3.13 - << 'PY'
+import subprocess, sys
+try:
+    subprocess.run(['docker','info'], capture_output=True, timeout=10, check=True)
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+PY
+then
+  echo "ERROR: Docker daemon is not responding."
+  echo "Please start Docker Desktop first, then re-run this script."
+  exit 1
+fi
+
 echo "Building Docker image ${IMAGE_NAME}..."
-docker build -t "${IMAGE_NAME}" .
+docker build --progress=plain -t "${IMAGE_NAME}" .
 
 # Stop and remove any existing container
 if docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
