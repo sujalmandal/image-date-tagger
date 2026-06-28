@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    extract::{Multipart, Path, State},
+    extract::{Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Json, Response},
     routing::{get, post, put},
@@ -9,12 +9,15 @@ use axum::{
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use chrono::NaiveDate;
+use futures_util::stream;
+use multer::Multipart as MulterMultipart;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tower_http::services::ServeDir;
+use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::cors::Any;
 use tracing::info;
 
 // ---------------------------------------------------------------------------
@@ -578,10 +581,34 @@ async fn ocr_progress(State(state): State<AppState>) -> Json<serde_json::Value> 
 
 async fn upload_files(
     State(state): State<AppState>,
-    mut multipart: Multipart,
+    req: axum::extract::Request,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     std::fs::create_dir_all(ROOT_DIR)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")))?;
+
+    let content_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    if !content_type.contains("multipart/form-data") {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Expected multipart/form-data, got: {content_type}"),
+        ));
+    }
+
+    let boundary = multer::parse_boundary(&content_type)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid boundary: {e}")))?;
+
+    let body_bytes = axum::body::to_bytes(req.into_body(), 250 * 1024 * 1024)
+        .await
+        .map_err(|e| (StatusCode::PAYLOAD_TOO_LARGE, format!("{e}")))?;
+
+    let stream = stream::once(async move { Ok::<_, std::convert::Infallible>(body_bytes.to_vec()) });
+    let mut multipart = MulterMultipart::new(stream, boundary);
 
     let mut saved: Vec<String> = Vec::new();
     let mut skipped: Vec<String> = Vec::new();
@@ -657,6 +684,11 @@ async fn main() {
         inner: Arc::new(RwLock::new(inner)),
     };
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/", get(index))
         .route("/api/files", get(get_files))
@@ -669,6 +701,7 @@ async fn main() {
         .route("/api/ocr-progress", get(ocr_progress))
         .route("/api/upload", post(upload_files))
         .nest_service("/static", ServeDir::new("static"))
+        .layer(cors)
         .with_state(state);
 
     let addr = "0.0.0.0:8000";
