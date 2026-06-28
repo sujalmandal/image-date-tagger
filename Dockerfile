@@ -12,9 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
-
-# Create data directory (uploads and annotations are mounted or created at runtime)
-RUN mkdir -p /app/data/uploads
+COPY data/ ./data/
 
 EXPOSE 8000
 
