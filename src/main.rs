@@ -636,6 +636,28 @@ async fn ocr_progress(State(state): State<AppState>) -> Json<serde_json::Value> 
     }))
 }
 
+fn dedup_filename(root: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let dest = root.join(name);
+    if !dest.exists() {
+        return dest;
+    }
+    let p = std::path::Path::new(name);
+    let stem = p.file_stem().unwrap().to_str().unwrap_or(name);
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+    for i in 1..=100 {
+        let new_name = if ext.is_empty() {
+            format!("{stem}_{i}")
+        } else {
+            format!("{stem}_{i}.{ext}")
+        };
+        let candidate = root.join(&new_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    root.join(format!("{stem}_101.{ext}"))
+}
+
 async fn upload_files(
     State(state): State<AppState>,
     req: axum::extract::Request,
@@ -691,12 +713,14 @@ async fn upload_files(
             (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))
         })?;
 
-        let dest = std::path::Path::new(ROOT_DIR).join(&file_name);
+        let root = std::path::Path::new(ROOT_DIR);
+        let dest = dedup_filename(root, &file_name);
         tokio::fs::write(&dest, &data)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")))?;
 
-        saved.push(file_name);
+        let actual_name = dest.file_name().unwrap().to_str().unwrap().to_string();
+        saved.push(actual_name);
     }
 
     // Sync annotations

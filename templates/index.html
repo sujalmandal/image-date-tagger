@@ -27,15 +27,14 @@
       <aside class="file-list-panel">
         <div class="panel-header">
           <span id="analyse-count">0 / 0</span>
-          <div class="batch-actions">
-            <button id="ocr-next-batch" class="small-btn" title="Run OCR on next 7 unprocessed files">OCR Next 7</button>
+          <div class="header-actions">
+            <label class="sel-all-label"><input type="checkbox" id="sel-all"> All</label>
+            <span class="bar-sep"></span>
             <button id="ocr-all" class="small-btn" title="Run OCR on all remaining files">OCR All</button>
+            <button id="ocr-selected" class="small-btn" disabled>OCR</button>
+            <button id="sel-delete" class="small-btn danger" disabled>Delete</button>
+            <span id="sel-count" class="sel-count"></span>
           </div>
-        </div>
-        <div class="selection-bar">
-          <label class="sel-all-label"><input type="checkbox" id="sel-all"> Select all</label>
-          <button id="sel-delete" class="small-btn danger" disabled>Delete</button>
-          <span id="sel-count" class="sel-count"></span>
         </div>
         <ul id="analyse-file-list" class="file-list"></ul>
       </aside>
@@ -80,7 +79,7 @@
 
         <div class="panel-section keyboard-help">
           <h3>Keyboard</h3>
-          <p><kbd>Esc</kbd> + <kbd>←</kbd> <kbd>→</kbd> prev / next</p>
+          <p><kbd>Esc</kbd> + <kbd>←</kbd> <kbd>→</kbd> or <kbd>↑</kbd> <kbd>↓</kbd> prev / next</p>
           <p><kbd>Enter</kbd> confirm date</p>
           <p><kbd>i</kbd> toggle invalid</p>
         </div>
@@ -116,6 +115,7 @@
               <button id="dash-img-next" class="small-btn">Next →</button>
             </div>
           </div>
+          <div id="dashboard-file-list" class="dashboard-file-list"></div>
           <div id="dashboard-image-viewer" class="image-viewer">
             <img id="dashboard-image" src="" alt="Receipt" draggable="false">
           </div>
@@ -128,11 +128,11 @@
     <section id="view-upload" class="view">
       <div class="upload-container">
         <div class="upload-box" id="upload-box">
-          <input type="file" id="upload-input" multiple accept="image/jpeg,image/jpg,image/png,image/webp">
+          <input id="upload-input" type="file" multiple accept="image/jpeg,image/jpg,image/png,image/webp">
           <div class="upload-icon">📁</div>
           <p class="upload-title">Drop images here or click to browse</p>
           <p class="upload-hint">JPG, PNG, WEBP accepted</p>
-          <button id="upload-button" class="upload-btn">Select Files</button>
+          <span class="upload-btn">Select Files</span>
         </div>
 
         <div id="upload-queue" class="upload-queue"></div>

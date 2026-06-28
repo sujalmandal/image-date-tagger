@@ -30,7 +30,6 @@
   const ocrProgressText = document.getElementById('ocr-progress-text');
   const ocrProgressFill = document.getElementById('ocr-progress-fill');
   const ocrCancel = document.getElementById('ocr-cancel');
-  const ocrNextBtn = document.getElementById('ocr-next-batch');
   const ocrAllBtn = document.getElementById('ocr-all');
   const dashboardDateList = document.getElementById('dashboard-date-list');
   const dashboardImages = document.getElementById('dashboard-images');
@@ -45,7 +44,6 @@
   const viewUpload = document.getElementById('view-upload');
   const uploadBox = document.getElementById('upload-box');
   const uploadInput = document.getElementById('upload-input');
-  const uploadButton = document.getElementById('upload-button');
   const uploadQueue = document.getElementById('upload-queue');
   const uploadStatus = document.getElementById('upload-status');
 
@@ -106,7 +104,6 @@
 
       const job = p.job || {};
       const running = job.status === 'running' || job.status === 'cancelling';
-      ocrNextBtn.disabled = running;
       ocrAllBtn.disabled = running;
       ocrCancel.classList.toggle('hidden', !running);
 
@@ -136,11 +133,13 @@
 
   const selAllCheck = document.getElementById('sel-all');
   const selDeleteBtn = document.getElementById('sel-delete');
+  const selOcrBtn = document.getElementById('ocr-selected');
   const selCountEl = document.getElementById('sel-count');
 
   function updateSelectionUI() {
     const count = selectedFiles.size;
     selDeleteBtn.disabled = count === 0;
+    selOcrBtn.disabled = count === 0;
     selCountEl.textContent = count ? `${count} selected` : '';
     selAllCheck.checked = files.length > 0 && selectedFiles.size === files.length;
     selAllCheck.indeterminate = selectedFiles.size > 0 && selectedFiles.size < files.length;
@@ -189,6 +188,25 @@
   }
 
   selDeleteBtn.addEventListener('click', deleteSelected);
+
+  async function startOcrSelected() {
+    const names = Array.from(selectedFiles);
+    if (!names.length) return;
+    stopOcrPoll();
+    try {
+      await api('/api/ocr-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filenames: names })
+      });
+      pollOcrJob();
+    } catch (e) {
+      alert('Could not start OCR: ' + e.message);
+      updateOcrProgress();
+    }
+  }
+
+  selOcrBtn.addEventListener('click', startOcrSelected);
 
   // ===================== Analyse view =====================
   function renderFileList() {
@@ -323,7 +341,21 @@
     return true;
   }
 
+  function formatDateInput(raw) {
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
+    let formatted = '';
+    if (digits.length > 0) formatted = digits.slice(0, 2);
+    if (digits.length > 2) formatted += '-' + digits.slice(2, 4);
+    if (digits.length > 4) formatted += '-' + digits.slice(4, 8);
+    return formatted;
+  }
+
   correctedInput.addEventListener('input', () => {
+    const raw = correctedInput.value;
+    const formatted = formatDateInput(raw);
+    if (formatted !== raw) {
+      correctedInput.value = formatted;
+    }
     validateDate(correctedInput.value.trim());
     debouncedSave();
   });
@@ -360,21 +392,33 @@
     if (document.activeElement === correctedInput) {
       if (e.key === 'Enter') {
         e.preventDefault();
+        const file = files[currentIndex];
+        if (file && file.extracted_date && !correctedInput.value.trim()) {
+          correctedInput.value = file.extracted_date;
+        }
         validateDate(correctedInput.value.trim());
-        saveCurrent();
-        correctedInput.blur();
-        nextFile();
-        focusInput();
+        const savePromise = saveCurrent();
+        // refresh the view after save so the corrected date is reflected
+        if (savePromise && typeof savePromise.then === 'function') {
+          savePromise.then(() => {
+            loadCurrentFile();
+            focusInput();
+          });
+        } else {
+          loadCurrentFile();
+          focusInput();
+        }
         return;
       }
+
       return;
     }
 
-    if (e.key === 'ArrowLeft') {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       e.preventDefault();
       prevFile();
       focusInput();
-    } else if (e.key === 'ArrowRight') {
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
       nextFile();
       focusInput();
@@ -535,7 +579,6 @@
     }
   }
 
-  ocrNextBtn.addEventListener('click', () => startOcrBatch(7, false));
   ocrAllBtn.addEventListener('click', () => {
     if (confirm('Run OCR on all remaining unprocessed images? This may take a while.')) {
       startOcrBatch(files.length, true);
@@ -641,6 +684,33 @@
     dashboardViewerWrap.classList.remove('hidden');
   }
 
+  function renderDashboardFileList() {
+    const container = document.getElementById('dashboard-file-list');
+    container.innerHTML = '';
+    dashboardDateFiles.forEach((filename, idx) => {
+      const item = document.createElement('div');
+      item.className = 'dash-file-item';
+      if (idx === dashboardImageIndex) item.classList.add('active');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = dashboardSelected.has(filename);
+      cb.addEventListener('change', () => toggleDashSelect(filename));
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = filename;
+
+      item.appendChild(cb);
+      item.appendChild(nameSpan);
+      item.addEventListener('click', (e) => {
+        if (e.target === cb) return;
+        dashboardImageIndex = idx;
+        updateDashboardImage();
+      });
+      container.appendChild(item);
+    });
+  }
+
   function updateDashboardImage() {
     const filename = dashboardDateFiles[dashboardImageIndex];
     dashboardImage.src = `/api/images/${encodeURIComponent(filename)}`;
@@ -648,6 +718,7 @@
     dashImgCounter.textContent = `${dashboardImageIndex + 1} / ${dashboardDateFiles.length}`;
     dashImgPrev.disabled = dashboardImageIndex === 0;
     dashImgNext.disabled = dashboardImageIndex === dashboardDateFiles.length - 1;
+    renderDashboardFileList();
     updateDashSelectionUI();
   }
 
@@ -747,17 +818,11 @@
   uploadBox.addEventListener('dragleave', () => {
     uploadBox.classList.remove('dragover');
   });
-  uploadBox.addEventListener('drop', (e) => {
-    e.preventDefault();
+  uploadBox.addEventListener('drop', () => {
     uploadBox.classList.remove('dragover');
-    uploadQueue.innerHTML = '';
-    uploadFiles(e.dataTransfer.files);
   });
 
-  uploadButton.addEventListener('click', (e) => {
-    e.preventDefault();
-    uploadInput.click();
-  });
+
 
   // ===================== Init =====================
   loadFiles();
